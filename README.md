@@ -1,94 +1,34 @@
-# Overview
-This repository contains all the code needed to complete the final project for the Localization course in Udacity's Self-Driving Car Nanodegree.
+# Particle Filter Project for Self-Driving Car in c++
 
-#### Submission
-All you will need to submit is your `src` directory. You should probably do a `git pull` before submitting to verify that your project passes the most up-to-date version of the grading code (there are some parameters in `src/main.cpp` which govern the requirements on accuracy and run time).
+[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+
+## Goal
+Based on the given map and obtained measurements, the goal is to sequentially predict the locazation of the vehicle.
+
 
 ## Project Introduction
 Your robot has been kidnapped and transported to a new location! Luckily it has a map of this location, a (noisy) GPS estimate of its initial location, and lots of (noisy) sensor and control data.
 
 In this project you will implement a 2 dimensional particle filter in C++. Your particle filter will be given a map and some initial localization information (analogous to what a GPS would provide). At each time step your filter will also get observation and control data.
 
-## Running the Code
-This project involves the Term 2 Simulator which can be downloaded [here](https://github.com/udacity/self-driving-car-sim/releases)
+## Particle filter
 
-This repository includes two files that can be used to set up and install uWebSocketIO for either Linux or Mac systems. For windows you can use either Docker, VMware, or even Windows 10 Bash on Ubuntu to install uWebSocketIO.
+By samplying method, particle filter can approximate any distribution, whereas Kalman filter is designed for Guassian distribution. Also, particle filter can handle non-linear system, but Kalman filter is utilized for linear system. 
 
-Once the install for uWebSocketIO is complete, the main program can be built and ran by doing the following from the project top directory.
+By prediction-updating procedure, particle filter solves the localization problem based on:
 
-1. mkdir build
-2. cd build
-3. cmake ..
-4. make
-5. ./particle_filter
+Measurement update: 
 
-Alternatively some scripts have been included to streamline this process, these can be leveraged by executing the following in the top directory of the project:
-
-1. ./clean.sh
-2. ./build.sh
-3. ./run.sh
-
-Tips for setting up your environment can be found [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
-
-Note that the programs that need to be written to accomplish the project are src/particle_filter.cpp, and particle_filter.h
-
-The program main.cpp has already been filled out, but feel free to modify it.
-
-Here is the main protocol that main.cpp uses for uWebSocketIO in communicating with the simulator.
-
-INPUT: values provided by the simulator to the c++ program
-
-// sense noisy position data from the simulator
-
-["sense_x"]
-
-["sense_y"]
-
-["sense_theta"]
-
-// get the previous velocity and yaw rate to predict the particle's transitioned state
-
-["previous_velocity"]
-
-["previous_yawrate"]
-
-// receive noisy observation data from the simulator, in a respective list of x/y values
-
-["sense_observations_x"]
-
-["sense_observations_y"]
+$p(x|z)\propto p(z|x)p(x)$, where $p(x)$ is represented by a set of particles, $p(z|x)$ are the corresponding importance weights. This step can be implemented by resampling method. 
 
 
-OUTPUT: values provided by the c++ program to the simulator
+Motion update:
 
-// best particle values used for calculating the error evaluation
-
-["best_particle_x"]
-
-["best_particle_y"]
-
-["best_particle_theta"]
-
-//Optional message data used for debugging particle's sensing and associations
-
-// for respective (x,y) sensed positions ID label
-
-["best_particle_associations"]
-
-// for respective (x,y) sensed positions
-
-["best_particle_sense_x"] <= list of sensed x positions
-
-["best_particle_sense_y"] <= list of sensed y positions
+$p(x'|z)=\sum p(x'|x,z)p(x|z)$, where $p(x'|x,z)$ is the system transition model and $p(x|z)$ are the updated particles based on resampling. Then, $p(x'|z)$ are the particles used for prior distribution for the next time sample.
 
 
-Your job is to build out the methods in `particle_filter.cpp` until the simulator output says:
 
-```
-Success! Your particle filter passed!
-```
-
-# Implementing the Particle Filter
+## Implementing the Particle Filter
 The directory structure of this repository is as follows:
 
 ```
@@ -116,28 +56,299 @@ The only file you should modify is `particle_filter.cpp` in the `src` directory.
 
 If you are interested, take a look at `src/main.cpp` as well. This file contains the code that will actually be running your particle filter and calling the associated methods.
 
-## Inputs to the Particle Filter
-You can find the inputs to the particle filter in the `data` directory.
 
-#### The Map*
-`map_data.txt` includes the position of landmarks (in meters) on an arbitrary Cartesian coordinate system. Each row has three columns
-1. x position
-2. y position
-3. landmark id
+### initialization 
 
-### All other data the simulator provides, such as observations and controls.
+Initialize a set of particles based on GPS.
 
-> * Map data provided by 3D Mapping Solutions GmbH.
+```
+void ParticleFilter::init(double x, double y, double theta, double std[]) {
+  /**
+   * TODO: Set the number of particles. Initialize all particles to 
+   *   first position (based on estimates of x, y, theta and their uncertainties
+   *   from GPS) and all weights to 1. 
+   * TODO: Add random Gaussian noise to each particle.
+   * NOTE: Consult particle_filter.h for more information about this method 
+   *   (and others in this file).
+   */
+  num_particles = 100;  // TODO: Set the number of particles
+  
+  std::default_random_engine gen;
+  // set std of variables
+  double std_x = std[0];
+  double std_y = std[1];
+  double std_theta = std[2];
+  
+  normal_distribution<double> dist_x(x, std_x);
+  normal_distribution<double> dist_y(y, std_y);
+  normal_distribution<double> dist_theta(theta, std_theta);
 
-## Success Criteria
-If your particle filter passes the current grading code in the simulator (you can make sure you have the current version at any time by doing a `git pull`), then you should pass!
+  for (int i=0; i<num_particles; i++) {
+    //define particle based on the struct
+    Particle particle_;
+    
+    particle_.id = i;
+    particle_.x = dist_x(gen);
+    particle_.y = dist_y(gen);
+    particle_.theta = dist_theta(gen);
+    particle_.weight = 1;
 
-The things the grading code is looking for are:
+
+    particles.push_back(particle_);
+  }
+
+  is_initialized = true;
+  vector<double> set_weights(num_particles,0.0);
+  weights = set_weights;
+}
+```
+### prediction step
 
 
-1. **Accuracy**: your particle filter should localize vehicle position and yaw to within the values specified in the parameters `max_translation_error` and `max_yaw_error` in `src/main.cpp`.
+This step implements the motion model:$p(x'|z)=\sum p(x'|x,z)p(x|z)$
 
-2. **Performance**: your particle filter should complete execution within the time of 100 seconds.
+Note that there are two situations for the vehicle movement: with/without yaw rate. The system transition models are different for these two cases. 
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+```
+void ParticleFilter::prediction(double delta_t, double std_pos[], 
+                                double velocity, double yaw_rate) {
+  /**
+   * TODO: Add measurements to each particle and add random Gaussian noise.
+   * NOTE: When adding noise you may find std::normal_distribution 
+   *   and std::default_random_engine useful.
+   *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
+   *  http://www.cplusplus.com/reference/random/default_random_engine/
+   */
+  std::default_random_engine gen;
+
+  double std_pos_x = std_pos[0];
+  double std_pose_y = std_pos[1];
+  double std_pose_theta = std_pos[2];
+
+  normal_distribution<double> dist_x(0, std_pos_x);
+  normal_distribution<double> dist_y(0, std_pose_y);
+  normal_distribution<double> dist_theta(0,std_pose_theta);
+  // pay attention to there are two cases: one is without yaw rate, one is with yaw, the motion model is different.
+  for (int i=0; i<particles.size(); i++) {
+
+    if (fabs(yaw_rate)==0) {
+
+      particles[i].x += cos(particles[i].theta) * velocity * delta_t + dist_x(gen);
+      particles[i].y += sin(particles[i].theta) * velocity * delta_t + dist_y(gen);
+      particles[i].theta += dist_theta(gen);
+
+    }
+    else
+    {
+      particles[i].x += velocity/yaw_rate * (sin(particles[i].theta + yaw_rate*delta_t)-sin(particles[i].theta)) + dist_x(gen);
+      particles[i].y += velocity/yaw_rate * (cos(particles[i].theta) - cos(particles[i].theta+yaw_rate*delta_t)) + dist_y(gen);
+      particles[i].theta += yaw_rate*delta_t + dist_theta(gen);
+    }
+    // std::cout << "prediction particle theta: " << particles[i].theta << std::endl;
+
+  }
+
+
+}
+```
+
+### data association
+
+Associate the measurement to the nearest landmark.
+
+```
+void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
+                                     vector<LandmarkObs>& observations) {
+  /**
+   * TODO: Find the predicted measurement that is closest to each 
+   *   observed measurement and assign the observed measurement to this 
+   *   particular landmark.
+   * NOTE: this method will NOT be called by the grading code. But you will 
+   *   probably find it useful to implement this method and use it as a helper 
+   *   during the updateWeights phase.
+   */
+
+  // associate the observation to the landmark within the sensor range
+
+  for (int i=0; i<observations.size(); i++) {
+
+    vector<double> dist_vec;
+    vector<size_t> sort_idx;
+
+    for (int j=0; j<predicted.size(); j++) {
+
+      dist_vec.push_back(dist(predicted[j].x, predicted[j].y, observations[i].x, observations[i].y));
+      
+    }
+    sort_idx = sort_indexes(dist_vec);
+    // observations[i].id = predicted[sort_idx[0]].id;
+    observations[i].id = sort_idx[0];
+
+    // std::cout << "associated observation landmark id: " << observations[i].id << std::endl;
+    // std::cout << "x_obs: " << observations[i].x;
+    // std::cout << " y_obs: " << observations[i].y << std::endl;
+
+    // std::cout << "landmark_x: " << predicted[sort_idx[0]].x;
+    // std::cout << "landmark_y: " << predicted[sort_idx[0]].y << std::endl;
+
+  }
+
+}
+
+```
+### Measurement update
+
+In order to achieve measurement update step, $p(x|z)\propto p(z|x)p(x)$,
+first the importance weights of particles should be calculated. Then, by resampling, we can get the updated distribution of particles.
+
+```
+void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
+                                   const vector<LandmarkObs> &observations, 
+                                   const Map &map_landmarks) {
+  /**
+   * TODO: Update the weights of each particle using a mult-variate Gaussian 
+   *   distribution. You can read more about this distribution here: 
+   *   https://en.wikipedia.org/wiki/Multivariate_normal_distribution
+   * NOTE: The observations are given in the VEHICLE'S coordinate system. 
+   *   Your particles are located according to the MAP'S coordinate system. 
+   *   You will need to transform between the two systems. Keep in mind that
+   *   this transformation requires both rotation AND translation (but no scaling).
+   *   The following is a good resource for the theory:
+   *   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
+   *   and the following is a good resource for the actual equation to implement
+   *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
+   */
+  // double whole_weights=0.0;
+
+  for (int i=0; i<particles.size(); i++) {
+    //transform the observations in vehicle coordinate system to map coordinate system
+    vector<LandmarkObs> transformed_observations;
+
+    for (int k=0; k<observations.size(); k++) {
+
+      LandmarkObs transformed_observation;
+      
+      transformed_observation.x = particles[i].x + (cos(particles[i].theta) * observations[k].x) - (sin(particles[i].theta) * observations[k].y);
+      transformed_observation.y = particles[i].y + (sin(particles[i].theta) * observations[k].x) + (cos(particles[i].theta) * observations[k].y);
+      transformed_observation.id = observations[k].id;
+
+      transformed_observations.push_back(transformed_observation);
+
+    }
+    //keep the landmarks in the map within the sensor range of the vehicle
+    vector<LandmarkObs> predictions;
+
+    for (int j=0; j<map_landmarks.landmark_list.size();j++) {
+
+      double dist_ = dist(particles[i].x,particles[i].y,map_landmarks.landmark_list[j].x_f, map_landmarks.landmark_list[j].y_f);
+
+      if (dist_ <= sensor_range) {
+        LandmarkObs prediction;
+
+        prediction.x = map_landmarks.landmark_list[j].x_f;
+        prediction.y =  map_landmarks.landmark_list[j].y_f;
+        prediction.id = map_landmarks.landmark_list[j].id_i;
+        
+        predictions.push_back(prediction);
+
+        // std::cout << "prediction particle dist: " << dist_ << std::endl;
+      }
+    }
+    
+    dataAssociation(predictions, transformed_observations);
+    
+    double final_weight=1.0;
+    vector<int> associations;
+    vector<double> sense_x;
+    vector<double> sense_y;
+    //calculate the weight for each particle
+    for (int k=0; k<transformed_observations.size(); k++) {
+
+      int predict_idx = int(transformed_observations[k].id);
+      double sig_x = std_landmark[0];
+      double sig_y = std_landmark[1];
+      double x_obs = transformed_observations[k].x;
+      double y_obs = transformed_observations[k].y;
+      double mu_x = predictions[predict_idx].x;
+      double mu_y = predictions[predict_idx].y;
+      // double mu_x = map_landmarks.landmark_list[land_idx].x_f;
+      // double mu_y = map_landmarks.landmark_list[land_idx].y_f;
+      double weight_;
+      
+
+      // particles[i].associations.push_back(predictions[predict_idx].id);
+      // particles[i].sense_x.push_back(x_obs);
+      // particles[i].sense_y.push_back(y_obs);
+
+      associations.push_back(predictions[predict_idx].id);
+      sense_x.push_back(x_obs);
+      sense_y.push_back(y_obs);
+
+      // std::cout << "x_obs: " << x_obs;
+      // std::cout << " y_obs: " << x_obs << std::endl;
+
+      // std::cout << "mu_x: " << mu_x;
+      // std::cout << " mu_y: " << mu_y << std::endl;
+
+      // std::cout << "multi prob: " << multiv_prob(sig_x, sig_y, x_obs, y_obs, mu_x, mu_y) << std::endl;
+      weight_ = multiv_prob(sig_x, sig_y, x_obs, y_obs, mu_x, mu_y);
+
+      if (weight_>0) {
+        final_weight *= weight_;
+      }
+      // std::cout << "final_weight: " << final_weight << std::endl;
+    }
+
+    particles[i].weight = final_weight;
+    weights[i] = particles[i].weight;
+    // whole_weights += particles[i].weight;
+    // for visualization in the output video
+    SetAssociations(particles[i], associations, sense_x, sense_y);
+  }
+
+  // for (int i=0; i<particles.size(); i++) {
+
+    // particles[i].weight = particles[i].weight/whole_weights;
+
+    // weights[i] = particles[i].weight/whole_weights;
+
+  // }
+
+
+}
+```
+
+```
+void ParticleFilter::resample() {
+  /**
+   * TODO: Resample particles with replacement with probability proportional 
+   *   to their weight. 
+   * NOTE: You may find std::discrete_distribution helpful here.
+   *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
+   */
+  
+
+  std::default_random_engine gen;
+
+  vector<Particle> resample_particles;
+
+  std::discrete_distribution<int> resample_dist(weights.begin(), weights.end());
+
+  for (int i=0; i<particles.size(); i++) {
+
+    int idx = resample_dist(gen);
+
+    resample_particles.push_back(particles[idx]);
+  }
+
+  particles = resample_particles;
+
+}
+```
+
+---
+
+## Result
+
+![alt text](./out.gif)
+
